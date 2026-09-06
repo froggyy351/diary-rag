@@ -84,10 +84,13 @@
 
 | 週 | 成果物 |
 |---|---|
-| W1 (9/1〜) | ① `uv init` でプロジェクト化し、playground の todo API を移植して起動する<br>② テストコーパスの**設計メモ**を書く（生成は W4 でよい） |
+| W1 (9/1〜) | ① `uv init` でプロジェクト化し、`diary` の CRUD を APIRouter で分割して起動する<br>② テストコーパスの**設計メモ**を書く（生成は W4 でよい） |
 | W2 | docker compose で PostgreSQL を起動し、SQLAlchemy 2.0 で `dict` を卒業。**ここが最初の Docker 体験** |
 | W3 | Alembic でマイグレーション。pytest + TestClient で CRUD のテスト（JUnit + MockMvc の対比） |
 | W4 | 設計メモをもとに**テストコーパスを生成**（`data/sample_diary/` に100〜200件）＋ `eval/questions.md` を同時に作る |
+
+**注記**: 練習用の使い捨てリソース（todo など）は作らない。W1〜W3 の練習は最初から
+`diary` テーブルで行い、10月の RAG はそのテーブルの上に載せる。あとで消すコードを書かない。
 
 ### 優先度の2階層
 
