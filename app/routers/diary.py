@@ -1,7 +1,22 @@
-from fastapi import FastAPI, APIRouter
+from datetime import date
+
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class DiaryCreate(BaseModel):
+    """日記の作成・更新でクライアントから受け取る形。"""
+
+    written_on: date
+    body: str
+
+
+class Diary(DiaryCreate):
+    """API が返す形。採番済みの diary_id を持つ。"""
+
+    diary_id: int
 
 @router.get("/diaries")
 async def get_diaries():
