@@ -18,6 +18,11 @@ class Diary(DiaryCreate):
 
     diary_id: int
 
+
+# メモリ上の仮の置き場所。W2 で PostgreSQL に置き換える。
+diaries: dict[int, Diary] = {}
+
+
 @router.get("/diaries")
 async def get_diaries():
     pass
@@ -27,8 +32,12 @@ async def get_diary():
     pass
 
 @router.post("/diaries")
-async def create_diaries():
-    pass
+async def create_diary(payload: DiaryCreate) -> Diary:
+    """日記を1件登録し、採番済みの結果を返す。"""
+    diary_id = max(diaries, default=0) + 1
+    diary = Diary(diary_id=diary_id, **payload.model_dump())
+    diaries[diary_id] = diary
+    return diary
 
 @router.put("/diaries/{diary_id}")
 async def update_diaries():
