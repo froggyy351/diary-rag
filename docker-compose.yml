@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: diary-rag-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: diary
+      POSTGRES_PASSWORD: diary
+      POSTGRES_DB: diary_rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - diary-rag-pgdata:/var/lib/postgresql/data
+
+volmues:
+  diary-rag-pgdata:
