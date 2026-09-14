@@ -12,5 +12,5 @@ services:
     volumes:
       - diary-rag-pgdata:/var/lib/postgresql/data
 
-volmues:
+volumes:
   diary-rag-pgdata:
