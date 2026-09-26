@@ -1,7 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import DiaryORM
 
 router = APIRouter()
 
@@ -14,44 +19,62 @@ class DiaryCreate(BaseModel):
 class Diary(DiaryCreate):
     """API が返す形。採番済みの diary_id を持つ。"""
 
+    model_config = ConfigDict(from_attributes=True)
+    
     diary_id: int
 
-# メモリ上の仮の置き場所。W2 で PostgreSQL に置き換える。
-diaries: dict[int, Diary] = {}
+def get_diary_or_404(
+    diary_id: int, db: Session = Depends(get_db)
+) -> DiaryORM:
+    """指定された1件を取り出す。無ければ404を投げる"""
+    row = db.get(DiaryORM, diary_id)
+    if row is None:
+        raise HTTPException(
+            status_code=404, detail=f"diary_id={diary_id}は見つかりません"
+        )
+    return row
 
 @router.get("/diaries")
-async def get_diaries() -> list[Diary]:
+async def get_diaries(db: Session = Depends(get_db)) -> list[Diary]:
     """登録済みの日記を全て返す"""
-    return list(diaries.values())
+    rows = db.scalars(select(DiaryORM).order_by(DiaryORM.diary_id)).all()
+    return [Diary.model_validate(row) for row in rows]
 
 @router.get("/diaries/{diary_id}")
-async def get_diary(diary_id: int) -> Diary:
+async def get_diary(row: DiaryORM = Depends(get_diary_or_404)) -> Diary:
     """指定された1件を返す。無ければ、404"""
-    if diary_id not in diaries:
-        raise HTTPException(status_code=404, detail=f"diary_id={diary_id} は見つかりません")
-    return diaries[diary_id]
+    return Diary.model_validate(row)
 
-@router.post("/diaries")
-async def create_diary(payload: DiaryCreate) -> Diary:
+@router.post("/diaries", status_code=201)
+async def create_diary(
+    payload: DiaryCreate, db: Session = Depends(get_db)
+    ) -> Diary:
     """日記を1件登録し、採番済みの結果を返す。"""
-    diary_id = max(diaries, default=0) + 1
-    diary = Diary(diary_id=diary_id, **payload.model_dump())
-    diaries[diary_id] = diary
-    return diary
+    row = DiaryORM(**payload.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return Diary.model_validate(row)
 
 @router.put("/diaries/{diary_id}")
-async def update_diary(diary_id: int, payload: DiaryCreate) -> Diary:
+async def update_diary(
+    payload: DiaryCreate,
+    row: DiaryORM = Depends(get_diary_or_404),
+    db: Session = Depends(get_db)
+    ) -> Diary:
     """指定された1件を丸ごと差し替える。無ければ404"""
-    if diary_id not in diaries:
-        raise HTTPException(status_code=404, detail=f"diary_id={diary_id} は見つかりません")
-    diary = Diary(diary_id=diary_id, **payload.model_dump()) 
-    diaries[diary_id] = diary
-    return diary
+    for field, value in payload.model_dump().items():
+        setattr(row, field, value)
+    db.commit()
+    db.refresh(row)
+    return Diary.model_validate(row)
 
 @router.delete("/diaries/{diary_id}", status_code=204)
-async def delete_diary(diary_id: int) -> None:
+async def delete_diary(
+    row: DiaryORM = Depends(get_diary_or_404),
+    db: Session = Depends(get_db)
+    ) -> None:
     """指定された1件を削除する。無ければ404"""
-    if diary_id not in diaries:
-        raise HTTPException(status_code=404, detail=f"diary_id={diary_id}は見つかりません")
-    del diaries[diary_id]
+    db.delete(row)
+    db.commit()
 
