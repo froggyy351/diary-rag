@@ -90,38 +90,92 @@ Claude が書くコードにも**必ず型ヒントを付ける**。実務で必
 - 例外はユーザーから明示的に「代わりにやって」と依頼されたときだけ。
   **過去に一度許可したことは、以後の許可にはならない**
 
-## 現在地（2026-09-19 時点）
+## 現在地（2026-09-26 時点）
 
-**9月W2〜W3の途中。dict から PostgreSQL への移行作業中。**
-
-できているもの:
-
-- `uv` でプロジェクト化済み（`pyproject.toml` / `uv.lock`）
-- `diary` の CRUD 5本が動く。APIRouter で分割済み。**ただし保存先はメモリ上の dict**
-- `docker compose` で PostgreSQL 16 が起動する（`docker-compose.yml`）
-- `app/database.py` — engine / SessionLocal / Base / `get_db`（yield 方式）
-- `app/models.py` — `DiaryORM`（diaries テーブルの定義）。**定義のみで未作成**
+**dict から PostgreSQL への移行作業中。**
 
 ```
 app/
-├── main.py         受付。router を登録
-├── database.py     DB 接続の道具一式
-├── models.py       テーブル定義（DiaryORM）
+├── main.py         受付。router を登録              ✅
+├── database.py     engine / SessionLocal /
+│                   Base / get_db（yield方式）       ✅
+├── models.py       DiaryORM（diaries の定義）       ✅ 定義のみ・テーブル未作成
 └── routers/
-    └── diary.py    CRUD 5本。まだ dict で動いている
+    └── diary.py    CRUD 5本                        ← まだ dict。ここを変える
 ```
 
-**次の一手**: PostgreSQL に実際にテーブルを作る → `diary.py` を DB に切り替える
-→ Alembic → pytest。これで9月の完了条件に到達する。
+- `uv` でプロジェクト化済み（`pyproject.toml` / `uv.lock`）
+- `docker compose` で PostgreSQL 16 が起動する。**ボリュームでデータは永続化される**
+- CRUD 5本は `/docs` から全部叩ける。404 / 422 / 204 も確認済み
 
-未着手の論点:
+**次の一手**: Alembic を入れて `diaries` テーブルを作る → `diary.py` を DB に切り替える
+→ pytest。
 
-- pydantic の `Diary` と SQLAlchemy の `DiaryORM` がなぜ両方要るのか（未説明）
+### 計画変更（2026-09-26）: Alembic を W2 に前倒し
+
+当初は「W2 で `create_all` → W3 で Alembic 導入」だったが、**最初のテーブル作成から
+Alembic でやる**。`create_all` で作ってから Alembic を入れると、既存テーブルと
+マイグレーション履歴の辻褄合わせが余分に発生するため。`001_create_diaries` が
+このプロジェクト最初のマイグレーションとして残る。
+
+### 残っている論点
+
+- pydantic の `Diary` と SQLAlchemy の `DiaryORM` を分ける理由 → **2026-09-19 に説明済み**
 - `Depends` で 404 チェックの重複3箇所をまとめる（`diary.py` の書き換え時に）
 - テストコーパスの設計メモ（W1②。まだ手つかず）
+- 月1回の検証（ユーザーが白紙から書く）は9月ぶんが未実施
 
-**未経験**: Alembic、pytest / TestClient、RAG 一式、フロント（React）。
-スキルの詳細は非公開設定側を参照。
+## 説明済みの概念（再説明しない。前提にしてよい）
+
+**セッションが切り替わっても、ここに載っているものは既知として扱う。**
+「〜とは何か」から始めない。忘れていると言われたら短く復習する。
+
+```
+Python    クラスの () は親クラス / dunder（__tablename__）/ None と null の違い
+          （undefined は無い）/ try-finally / yield（一時停止して再開）/
+          ** による dict 展開 / f文字列 / インデントが文法 / コメントは #
+
+uv        pyproject.toml は「何が欲しいか」、uv.lock は「解決した答え」/
+          uv run で activate 不要 / --app --no-package で build-system を作らない
+
+Docker    イメージ（ひな型）とコンテナ（実物）/ カーネルは共有、OSのファイル一式だけ持つ /
+          ボリュームでデータを箱の外に逃がす / Docker Desktop は非Linux用 /
+          本番の Linux サーバーには Engine だけ / compose と k8s の役割分担
+
+FastAPI   APIRouter で分割 / 型ヒントがそのまま検証になる / 404 は自分で書き、
+          422 は自動 / 204 と -> None / デコレータの引数は設定、関数の引数は入力 /
+          フレームワークが自分のコードを呼ぶ（制御の反転）
+
+pydantic  BaseModel / 継承でフィールドを引き継ぎ不整合を防ぐ /
+          入口（DiaryCreate）と出口（Diary）で型を分ける理由 /
+          ORM と分ける4つの理由（境界・変更頻度・出したくない項目・10月の chunks）
+
+SQLAlchemy  engine は1つ、Session はリクエストごと / db.close() は接続を返すだけ /
+            get_db の yield / Mapped[int] は Python 側、Integer は DB 側
+
+git       restore --staged（--staged を落とすと編集内容が消える）/ A..B は
+          「B にあって A にない」/ HEAD の中身はブランチ名 / git rm --cached
+```
+
+### 予習済み（読み物で説明済み。実装はこれから）
+
+Alembic が解決する問題と autogenerate の限界 / pytest・TestClient・fixture /
+埋め込みとコサイン類似度 / チャンク分割とオーバーラップ / pgvector と近似インデックス /
+LangChain の役割と批判 / 評価は検索と生成を分けて測る（Recall / Precision）/
+LangGraph とエージェント / CORS / Dockerfile
+
+## この環境で実際に踏んだ罠
+
+- **PC に PostgreSQL 17 が直接入っている。** 2026-09-14 に停止し `StartType=Manual` にした。
+  自動起動に戻すと 5432 を取り合う
+- **Windows は同一ポートへの二重バインドをエラーにしない。** 起動成功に見えて別プロセスが
+  応答する事故が起きた。ポート衝突を疑うときは `Get-NetTCPConnection -LocalPort N`
+- **親プロセスが死んでも子がソケットを握り続けることがある。** `taskkill` が
+  「見つかりません」と言うのに応答が返る状態になった。子のPIDを探して落とす
+- **Docker Desktop は PC 再起動で落ちる。** 作業開始時に `docker compose ps` で確認する
+- **写経後は Claude が必ずファイルを読んで確認する。** 綴り（`volumes`）、インデント幅、
+  引数の置き場所（`status_code`）のズレが実際に複数回発生している。
+  「できた」と言われても読まずに次へ進まない
 
 ## 技術選定（決定済み・以後迷わない）
 
@@ -154,17 +208,20 @@ app/
 | **2027/1** | React + Tailwind の最小チャットUI（下記スコープ厳守） | ブラウザから質問して答えが返る |
 | **2027/2** | Dockerfile を書く → `docker compose up` 一発で api + front + DB が立つ → README にアーキテクチャ図 | 他人がクローンして動かせる |
 
-### 9月の内訳（W1〜W4）
+### 9月の残作業
 
-| 週 | 成果物 |
-|---|---|
-| W1 (9/1〜) | ① `uv init` でプロジェクト化し、`diary` の CRUD を APIRouter で分割して起動する<br>② テストコーパスの**設計メモ**を書く（生成は W4 でよい） |
-| W2 | docker compose で PostgreSQL を起動し、SQLAlchemy 2.0 で `dict` を卒業。**ここが最初の Docker 体験** |
-| W3 | Alembic でマイグレーション。pytest + TestClient で CRUD のテスト（JUnit + MockMvc の対比） |
-| W4 | 設計メモをもとに**テストコーパスを生成**（`data/sample_diary/` に100〜200件）＋ `eval/questions.md` を同時に作る |
+```
+✅ uv init / CRUD 5本 / APIRouter 分割 / docker compose で PostgreSQL
+✅ SQLAlchemy 導入 / database.py / models.py
+□  Alembic で diaries テーブルを作る
+□  diary.py を dict から DB に切り替える
+□  pytest + TestClient で CRUD のテスト
+□  テストコーパスの生成（data/sample_diary/ に100〜200件）+ eval/questions.md
+```
 
-**注記**: 練習用の使い捨てリソース（todo など）は作らない。W1〜W3 の練習は最初から
+**注記**: 練習用の使い捨てリソース（todo など）は作らない。練習は最初から
 `diary` テーブルで行い、10月の RAG はそのテーブルの上に載せる。あとで消すコードを書かない。
+**コーパス生成は10月にずれても構わない**（RAG の実装開始までに間に合えばよい）。
 
 ### 優先度の2階層
 
