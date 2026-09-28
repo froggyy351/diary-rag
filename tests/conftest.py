@@ -1,4 +1,5 @@
 import pytest
+from collections.abc import Generator
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -13,7 +14,7 @@ test_engine = create_engine(TEST_DATABASE_URL)
 TestSessionLocal = sessionmaker(bind=test_engine, autoflush=False)
 
 @pytest.fixture
-def db() -> Session:
+def db() -> Generator[Session]:
     """テストごとに、まっさらなテーブルを用意する。"""
     Base.metadata.drop_all(test_engine)
     Base.metadata.create_all(test_engine)
@@ -24,7 +25,7 @@ def db() -> Session:
         session.close()
 
 @pytest.fixture
-def client(db: Session) -> TestClient:
+def client(db: Session) -> Generator[TestClient]:
     """アプリのDB接続先をテスト用に差し替えた。TestClient"""
     
     def override_get_db():
@@ -34,4 +35,4 @@ def client(db: Session) -> TestClient:
     try:
         yield TestClient(app)
     finally:
-        app.dependency_overrides.clear
+        app.dependency_overrides.clear()
