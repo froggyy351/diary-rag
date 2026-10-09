@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.20.0",
     "fastapi>=0.141.1",
+    "google-genai>=2.29.0",
     "psycopg[binary]>=3.3.5",
     "sqlalchemy>=2.0.53",
     "uvicorn>=0.52.4",
